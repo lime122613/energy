@@ -5,9 +5,13 @@ import matplotlib.pyplot as plt
 # 데이터 불러오기
 @st.cache_data
 def load_data():
-    df = pd.read_csv("energy(2024).csv", encoding='cp949')
+    try:
+        df = pd.read_csv("energy(2024).csv", encoding='utf-8')
+    except UnicodeDecodeError:
+        df = pd.read_csv("energy(2024).csv", encoding='cp949')
+
     df.drop(columns=[col for col in df.columns if 'Unnamed' in col], inplace=True)
-    
+
     # 문자열 숫자에서 쉼표 제거 및 숫자로 변환
     for month in ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']:
         df[month] = df[month].astype(str).str.replace(",", "").astype(float)
