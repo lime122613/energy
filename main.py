@@ -10,17 +10,20 @@ def load_data():
     except UnicodeDecodeError:
         df = pd.read_csv("energy(2024).csv", encoding='cp949')
 
-    # 컬럼 정리
     df.columns = df.columns.str.strip()
     df.drop(columns=[col for col in df.columns if 'Unnamed' in col], inplace=True)
 
-    # 월별 컬럼 자동 인식 및 숫자 처리
+    # 월별 컬럼 처리 (안전한 변환)
     month_columns = [col for col in df.columns if any(str(m) + "월" in col for m in range(1, 13))]
 
     for month in month_columns:
-        df[month] = df[month].astype(str).str.replace(",", "").str.strip().astype(float)
+        df[month] = pd.to_numeric(
+            df[month].astype(str).str.replace(",", "").str.strip(),
+            errors='coerce'
+        )
 
     return df
+
 
 
 df = load_data()
