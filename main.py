@@ -10,13 +10,18 @@ def load_data():
     except UnicodeDecodeError:
         df = pd.read_csv("energy(2024).csv", encoding='cp949')
 
+    # 컬럼 정리
+    df.columns = df.columns.str.strip()
     df.drop(columns=[col for col in df.columns if 'Unnamed' in col], inplace=True)
 
-    # 문자열 숫자에서 쉼표 제거 및 숫자로 변환
-    for month in ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']:
-        df[month] = df[month].astype(str).str.replace(",", "").astype(float)
-    
+    # 월별 컬럼 자동 인식 및 숫자 처리
+    month_columns = [col for col in df.columns if any(str(m) + "월" in col for m in range(1, 13))]
+
+    for month in month_columns:
+        df[month] = df[month].astype(str).str.replace(",", "").str.strip().astype(float)
+
     return df
+
 
 df = load_data()
 
