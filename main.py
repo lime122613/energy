@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # 데이터 불러오기
 @st.cache_data
 def load_data():
-    df = pd.read_csv("시군구별 전력사용량(2024).csv", encoding='cp949')
+    df = pd.read_csv("energy(2024).csv", encoding='cp949')
     df.drop(columns=[col for col in df.columns if 'Unnamed' in col], inplace=True)
     
     # 문자열 숫자에서 쉼표 제거 및 숫자로 변환
