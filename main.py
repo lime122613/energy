@@ -23,84 +23,52 @@ df, month_columns = load_data()
 
 st.title("대한민국 전력 사용량 시각화 및 비교 시스템")
 
-# -------------------------------
-# ✅ 1. 전국 시도별 전력 사용 지도
-# -------------------------------
-st.header("📍 대한민국 월별 전력 사용 지도")
+# ----------------------------------------
+# ✅ 1. 시군구별 전력 사용량 총합 비교
+# ----------------------------------------
+st.header("🔍 시군구별 전력 사용량 비교")
 
-selected_month = st.selectbox("비교할 월을 선택하세요", month_columns)
-
-# 시도별 월별 합계 계산
-df_sido_month = df.groupby("시도")[selected_month].sum().reset_index()
-df_sido_month.columns = ["시도", "전력사용량"]
-
-# 시도 → 영문 매핑
-sido_name_map = {
-    '서울특별시': 'Seoul', '부산광역시': 'Busan', '대구광역시': 'Daegu', '인천광역시': 'Incheon',
-    '광주광역시': 'Gwangju', '대전광역시': 'Daejeon', '울산광역시': 'Ulsan', '세종특별자치시': 'Sejong',
-    '경기도': 'Gyeonggi-do', '강원도': 'Gangwon-do', '충청북도': 'Chungcheongbuk-do',
-    '충청남도': 'Chungcheongnam-do', '전라북도': 'Jeollabuk-do', '전라남도': 'Jeollanam-do',
-    '경상북도': 'Gyeongsangbuk-do', '경상남도': 'Gyeongsangnam-do', '제주특별자치도': 'Jeju-do'
-}
-df_sido_month["region_eng"] = df_sido_month["시도"].map(sido_name_map)
-
-fig_map = px.choropleth(
-    df_sido_month,
-    geojson="https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea-provinces.json",
-    locations="region_eng",
-    featureidkey="properties.name_eng",
-    color="전력사용량",
-    hover_name="시도",
-    hover_data={"전력사용량": ":,.0f"},
-    color_continuous_scale="YlOrRd",
-    title=f"{selected_month} 시도별 전력 사용량 지도"
-)
-fig_map.update_geos(fitbounds="locations", visible=False)
-fig_map.update_layout(margin={"r":0,"t":30,"l":0,"b":0})
-st.plotly_chart(fig_map)
-
-# -------------------------------
-# ✅ 2. 학생용 탐색: 지역+계약종+월별 비교
-# -------------------------------
-st.header("🔍 전력 사용량 비교 탐색")
-
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 with col1:
     selected_region = st.selectbox("시도 선택", sorted(df["시도"].unique()))
 with col2:
     selected_contract = st.selectbox("계약종별 선택", sorted(df["계약종별"].unique()))
-with col3:
-    selected_month2 = st.selectbox("월 선택", month_columns)
 
 # 필터링된 데이터
 filtered_df = df[
     (df["시도"] == selected_region) &
     (df["계약종별"] == selected_contract)
-]
+].copy()
 
-# 시군구별 전력 사용량
-df_compare = filtered_df[["시군구", selected_month2]].sort_values(by=selected_month2, ascending=False)
+filtered_df["총합"] = filtered_df[month_columns].sum(axis=1)
+df_compare = filtered_df[["시군구", "총합"]].sort_values(by="총합", ascending=False)
 
-st.subheader(f"📊 {selected_region} - {selected_contract} - {selected_month2} 시군구별 전력 사용량")
+st.subheader(f"📊 {selected_region} - {selected_contract} 전력 사용량 총합 (시군구별)")
 fig_bar = px.bar(
     df_compare,
     x="시군구",
-    y=selected_month2,
-    labels={selected_month2: "전력사용량(kWh)", "시군구": "지역"},
-    text=selected_month2
+    y="총합",
+    labels={"총합": "전력사용량(kWh)", "시군구": "지역"},
+    text="총합"
 )
 fig_bar.update_traces(texttemplate='%{text:.2s}', textposition='outside')
 st.plotly_chart(fig_bar)
 
-# -------------------------------
-# ✅ 3. 추가 꺾은선 비교 그래프 (선택적)
-# -------------------------------
-st.subheader(f"📈 {selected_region} - 계약종별 월별 사용량 비교")
+# ----------------------------------------
+# ✅ 2. 계약종별 월별 전력 사용량 비교
+# ----------------------------------------
+st.header(f"📈 {selected_region} 계약종별 월별 사용량 비교")
+
+# "합계" 제외한 계약종 목록
+available_contracts = sorted(
+    df[df["시도"] == selected_region]["계약종별"].unique().tolist()
+)
+default_contracts = [c for c in available_contracts if "합계" not in c]
 
 selected_contracts = st.multiselect(
     "비교할 계약종을 선택하세요",
-    options=sorted(df[df["시도"] == selected_region]["계약종별"].unique()),
-    default=[selected_contract]
+    options=available_contracts,
+    default=default_contracts
 )
 
 if selected_contracts:
@@ -120,8 +88,19 @@ if selected_contracts:
         x="월",
         y="전력사용량",
         color="계약종별",
-        markers=True
+        markers=True,
+        title=f"{selected_region} 계약종별 월별 전력 사용량"
     )
     st.plotly_chart(fig_line)
+
+    # ▶ 자동 하이라이트
+    peak_row = melted.loc[melted["전력사용량"].idxmax()]
+    peak_month = peak_row["월"]
+    peak_contract = peak_row["계약종별"]
+    peak_value = peak_row["전력사용량"]
+
+    st.success(
+        f"✅ **가장 많은 전력 사용**: **{peak_contract}** 계약종이 **{peak_month}**에 **{int(peak_value):,} kWh** 사용"
+    )
 else:
-    st.info("계약종을 선택하세요.")
+    st.info("계약종을 하나 이상 선택해주세요.")
