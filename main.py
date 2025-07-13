@@ -22,55 +22,43 @@ def load_data():
 
 df, month_columns = load_data()
 
-# ✅ 연도 선택
-st.title("시도별 연간 전력 사용량 비교")
-years = df["연도"].unique()
-selected_year = st.selectbox("연도를 선택하세요", sorted(years))
+# ✅ 시도 선택
+st.title("시도별 계약종별 전력 사용량 비교")
+sido_list = sorted(df["시도"].unique())
+selected_sido = st.selectbox("시도를 선택하세요", sido_list)
 
-# ✅ 시도별 연간 전력 사용량 계산
-df_year = df[df["연도"] == selected_year]
-df_grouped = df_year.groupby("시도")[month_columns].sum()
-df_grouped["연간총합"] = df_grouped.sum(axis=1)
-df_sorted = df_grouped.sort_values("연간총합", ascending=False).reset_index()
+# ✅ 선택한 시도의 계약종별 목록
+filtered_df = df[df["시도"] == selected_sido]
+contract_types = filtered_df["계약종별"].unique().tolist()
 
-# ✅ 막대 그래프
-st.subheader("시도별 연간 전력 사용량 (막대 그래프)")
-bar_fig = px.bar(
-    df_sorted,
-    x='시도',
-    y='연간총합',
-    text='연간총합',
-    labels={'연간총합': '연간 전력 사용량 (kWh)', '시도': '지역'},
-    title=f"{selected_year}년 시도별 연간 전력 사용량"
+selected_contracts = st.multiselect(
+    "비교할 계약종을 선택하세요",
+    options=contract_types,
+    default=contract_types[:1]  # 기본 1개 선택
 )
-bar_fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
-bar_fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
-st.plotly_chart(bar_fig)
 
-# ✅ 지도용 시도-영문 매핑
-sido_name_map = {
-    '서울특별시': 'Seoul', '부산광역시': 'Busan', '대구광역시': 'Daegu', '인천광역시': 'Incheon',
-    '광주광역시': 'Gwangju', '대전광역시': 'Daejeon', '울산광역시': 'Ulsan', '세종특별자치시': 'Sejong',
-    '경기도': 'Gyeonggi-do', '강원도': 'Gangwon-do', '충청북도': 'Chungcheongbuk-do',
-    '충청남도': 'Chungcheongnam-do', '전라북도': 'Jeollabuk-do', '전라남도': 'Jeollanam-do',
-    '경상북도': 'Gyeongsangbuk-do', '경상남도': 'Gyeongsangnam-do', '제주특별자치도': 'Jeju-do'
-}
+# ✅ 꺾은선 그래프 시각화
+st.subheader(f"{selected_sido}의 계약종별 월별 전력 사용량 비교")
 
-df_sorted["region_eng"] = df_sorted["시도"].map(sido_name_map)
+if selected_contracts:
+    line_data = filtered_df[filtered_df["계약종별"].isin(selected_contracts)]
+    line_data_grouped = line_data.groupby("계약종별")[month_columns].sum().T
+    line_data_grouped.index.name = "월"
+    line_data_grouped.reset_index(inplace=True)
 
-# ✅ 지도 시각화 (대한민국 Choropleth)
-st.subheader("시도별 연간 전력 사용량 (지도)")
-fig_map = px.choropleth(
-    df_sorted,
-    geojson="https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea-provinces.json",
-    featureidkey="properties.name_eng",
-    locations="region_eng",
-    color="연간총합",
-    color_continuous_scale="YlOrRd",
-    hover_name="시도",
-    hover_data={"연간총합": ":,.0f"},
-    title="대한민국 시도별 연간 전력 사용량"
-)
-fig_map.update_geos(fitbounds="locations", visible=False)
-fig_map.update_layout(margin={"r":0,"t":30,"l":0,"b":0})
-st.plotly_chart(fig_map)
+    # 월 텍스트 정렬
+    line_data_grouped["월"] = pd.Categorical(line_data_grouped["월"], categories=month_columns, ordered=True)
+
+    line_df_melted = line_data_grouped.melt(id_vars="월", var_name="계약종별", value_name="전력사용량")
+
+    fig = px.line(
+        line_df_melted,
+        x="월",
+        y="전력사용량",
+        color="계약종별",
+        markers=True,
+        title=f"{selected_sido}의 계약종별 월별 전력 사용량"
+    )
+    st.plotly_chart(fig)
+else:
+    st.warning("최소 하나의 계약종을 선택해주세요.")
