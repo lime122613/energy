@@ -53,51 +53,54 @@ fig_bar = px.bar(
 )
 fig_bar.update_traces(texttemplate='%{text:.2s}', textposition='outside')
 st.plotly_chart(fig_bar)
-
 # ----------------------------------------
-# ✅ 2. 계약종별 월별 전력 사용량 비교
+# ✅ 2. 계약종별 월별 전력 사용량 비교 (시군구 선택 + 자동 그래프)
 # ----------------------------------------
-st.header(f"📈 {selected_region} 계약종별 월별 사용량 비교")
+st.header(f"📈 {selected_region} 시군구별 계약종 월별 사용량 비교")
 
-# "합계" 제외한 계약종 목록
-available_contracts = sorted(
-    df[df["시도"] == selected_region]["계약종별"].unique().tolist()
+# 선택한 시도의 시군구 목록 필터
+sgg_options = sorted(df[df["시도"] == selected_region]["시군구"].unique())
+selected_sgg = st.selectbox("시군구 선택", sgg_options)
+
+# "합계" 제외한 계약종 목록 자동 필터
+all_contracts = df[
+    (df["시도"] == selected_region) &
+    (df["시군구"] == selected_sgg)
+]["계약종별"].unique().tolist()
+filtered_contracts = sorted([c for c in all_contracts if "합계" not in c])
+
+# 해당 시군구 + 계약종별 데이터
+compare_df = df[
+    (df["시도"] == selected_region) &
+    (df["시군구"] == selected_sgg) &
+    (df["계약종별"].isin(filtered_contracts))
+]
+
+# 월별 합계 정리
+grouped = compare_df.groupby("계약종별")[month_columns].sum().T
+grouped.index.name = "월"
+grouped.reset_index(inplace=True)
+grouped["월"] = pd.Categorical(grouped["월"], categories=month_columns, ordered=True)
+
+# 시각화용 long-form
+melted = grouped.melt(id_vars="월", var_name="계약종별", value_name="전력사용량")
+
+# 꺾은선 그래프
+fig_line = px.line(
+    melted,
+    x="월",
+    y="전력사용량",
+    color="계약종별",
+    markers=True,
+    title=f"{selected_region} {selected_sgg} 계약종별 월별 전력 사용량"
 )
-default_contracts = [c for c in available_contracts if "합계" not in c]
+st.plotly_chart(fig_line)
 
-selected_contracts = st.multiselect(
-    "비교할 계약종을 선택하세요",
-    options=available_contracts,
-    default=default_contracts
+# ▶ 자동 하이라이트
+peak_row = melted.loc[melted["전력사용량"].idxmax()]
+st.success(
+    f"✅ **최고 사용량**: **{peak_row['계약종별']}** 계약종이 **{peak_row['월']}**에 **{int(peak_row['전력사용량']):,} kWh** 사용"
 )
-
-if selected_contracts:
-    compare_df = df[
-        (df["시도"] == selected_region) &
-        (df["계약종별"].isin(selected_contracts))
-    ]
-    grouped = compare_df.groupby("계약종별")[month_columns].sum().T
-    grouped.index.name = "월"
-    grouped.reset_index(inplace=True)
-
-    grouped["월"] = pd.Categorical(grouped["월"], categories=month_columns, ordered=True)
-    melted = grouped.melt(id_vars="월", var_name="계약종별", value_name="전력사용량")
-
-    fig_line = px.line(
-        melted,
-        x="월",
-        y="전력사용량",
-        color="계약종별",
-        markers=True,
-        title=f"{selected_region} 계약종별 월별 전력 사용량"
-    )
-    st.plotly_chart(fig_line)
-
-    # ▶ 자동 하이라이트
-    peak_row = melted.loc[melted["전력사용량"].idxmax()]
-    peak_month = peak_row["월"]
-    peak_contract = peak_row["계약종별"]
-    peak_value = peak_row["전력사용량"]
 
     st.success(
         f"✅ **가장 많은 전력 사용**: **{peak_contract}** 계약종이 **{peak_month}**에 **{int(peak_value):,} kWh** 사용"
