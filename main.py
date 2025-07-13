@@ -101,9 +101,3 @@ peak_row = melted.loc[melted["전력사용량"].idxmax()]
 st.success(
     f"✅ **최고 사용량**: **{peak_row['계약종별']}** 계약종이 **{peak_row['월']}**에 **{int(peak_row['전력사용량']):,} kWh** 사용"
 )
-
-    st.success(
-        f"✅ **가장 많은 전력 사용**: **{peak_contract}** 계약종이 **{peak_month}**에 **{int(peak_value):,} kWh** 사용"
-    )
-else:
-    st.info("계약종을 하나 이상 선택해주세요.")
