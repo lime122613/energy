@@ -36,6 +36,10 @@ selected_contract = st.selectbox("계약종을 선택하세요", contract_list)
 df_grouped = df.groupby(["시도", "계약종별"])["연간총합"].sum().reset_index()
 df_selected = df_grouped[df_grouped["계약종별"] == selected_contract].sort_values(by="연간총합", ascending=False)
 
+# ✅ 사용량이 가장 높은 시도 찾기
+top_region = df_selected.iloc[0]["시도"]
+top_value = int(df_selected.iloc[0]["연간총합"])
+
 fig_bar = px.bar(
     df_selected,
     x="시도",
@@ -48,3 +52,84 @@ fig_bar.update_traces(texttemplate='%{text:.2s}', textposition='outside')
 fig_bar.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
 st.plotly_chart(fig_bar)
 
+# ✅ 학생 유도 메시지 및 선택지
+message = f"💡 **{selected_contract}**의 경우 **{top_region}**의 연간 전력 사용량이 가장 높네요! " \
+          f"{top_region}의 2024년 월별 전력 사용량을 좀 더 살펴볼까요?"
+
+st.markdown(message)
+if st.checkbox(f"{top_region}의 월별 전력 사용량 보기"):
+    df_top_region = df[
+        (df["시도"] == top_region) &
+        (df["계약종별"] == selected_contract)
+    ]
+
+    df_month_sum = df_top_region.groupby("월").sum() if "월" in df_top_region.columns else None
+    df_top_grouped = df_top_region[month_columns].sum()
+
+    # 꺾은선 그래프 준비
+    monthly_data = pd.DataFrame({
+        "월": month_columns,
+        "전력사용량": df_top_grouped.values
+    })
+
+    fig_monthly = px.line(
+        monthly_data,
+        x="월",
+        y="전력사용량",
+        markers=True,
+        title=f"📈 {top_region}의 월별 {selected_contract} 전력 사용량"
+    )
+    st.plotly_chart(fig_monthly)
+
+# --------------------------
+# 📈 2. 시군구별 계약종 월별 사용량 꺾은선 그래프
+# --------------------------
+st.header("📈 시군구별 계약종 월별 사용량 비교")
+
+selected_sido = st.selectbox("시도 선택", sorted(df["시도"].unique()))
+available_sgg = sorted(df[df["시도"] == selected_sido]["시군구"].unique().tolist())
+
+# ✔ 교육용이면 최대 사용량 기준 자동 선택
+selected_contract = selected_contract  # 기존에 선택한 계약종
+if selected_contract == "교육용":
+    edu_df = df[(df["시도"] == selected_sido) & (df["계약종별"] == "교육용")]
+    edu_df["총합"] = edu_df[month_columns].sum(axis=1)
+    default_sgg = edu_df.sort_values(by="총합", ascending=False).iloc[0]["시군구"]
+else:
+    default_sgg = available_sgg[0]
+
+selected_sgg = st.selectbox("시군구 선택", available_sgg, index=available_sgg.index(default_sgg))
+
+# ✔ 필터링 및 합계 제외
+df_filtered = df[
+    (df["시도"] == selected_sido) &
+    (df["시군구"] == selected_sgg) &
+    (df["계약종별"] != "합계")
+]
+
+# ✔ 월 정렬
+month_order = [f"{i}월" for i in range(1, 13)]
+
+grouped = df_filtered.groupby("계약종별")[month_order].sum().T
+grouped.index.name = "월"
+grouped.reset_index(inplace=True)
+grouped["월"] = pd.Categorical(grouped["월"], categories=month_order, ordered=True)
+
+# ✔ 꺾은선 그래프 그리기
+melted = grouped.melt(id_vars="월", var_name="계약종별", value_name="전력사용량")
+fig_line = px.line(
+    melted,
+    x="월",
+    y="전력사용량",
+    color="계약종별",
+    markers=True,
+    title=f"{selected_sido} {selected_sgg} 계약종별 월별 전력 사용량"
+)
+st.plotly_chart(fig_line)
+
+# ✔ 최고/최저 하이라이트
+peak = melted.loc[melted["전력사용량"].idxmax()]
+low = melted.loc[melted["전력사용량"].idxmin()]
+
+st.success(f"✅ 최고 사용: **{peak['계약종별']}** - **{peak['월']}**에 **{int(peak['전력사용량']):,} kWh**")
+st.info(f"🔻 최저 사용: **{low['계약종별']}** - **{low['월']}**에 **{int(low['전력사용량']):,} kWh**")
