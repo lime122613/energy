@@ -56,30 +56,6 @@ st.plotly_chart(fig_bar)
 message = f"💡 **{selected_contract}**의 경우 **{top_region}**의 연간 전력 사용량이 가장 높네요! " \
           f"{top_region}의 2024년 월별 전력 사용량을 좀 더 살펴볼까요?"
 
-st.markdown(message)
-if st.checkbox(f"{top_region}의 월별 전력 사용량 보기"):
-    df_top_region = df[
-        (df["시도"] == top_region) &
-        (df["계약종별"] == selected_contract)
-    ]
-
-    df_month_sum = df_top_region.groupby("월").sum() if "월" in df_top_region.columns else None
-    df_top_grouped = df_top_region[month_columns].sum()
-
-    # 꺾은선 그래프 준비
-    monthly_data = pd.DataFrame({
-        "월": month_columns,
-        "전력사용량": df_top_grouped.values
-    })
-
-    fig_monthly = px.line(
-        monthly_data,
-        x="월",
-        y="전력사용량",
-        markers=True,
-        title=f"📈 {top_region}의 월별 {selected_contract} 전력 사용량"
-    )
-    st.plotly_chart(fig_monthly)
 
 # --------------------------
 # 📈 2. 시군구별 계약종 월별 사용량 꺾은선 그래프
