@@ -24,6 +24,40 @@ def load_data():
 df, month_columns = load_data()
 contract_list = sorted(df["계약종별"].unique())
 
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+
+
+# --------------------------
+# 📊 전체 전력 사용량 기준 시도별 막대그래프
+# --------------------------
+st.title("전력 사용량 시각화 · 탐색 플랫폼")
+st.header("🌍 전체 전력 사용량 기준 시도별 순위")
+
+df_total_by_sido = df.groupby("시도")["연간총합"].sum().reset_index().sort_values(by="연간총합", ascending=False)
+
+fig_total = px.bar(df_total_by_sido, x="시도", y="연간총합",
+                   text="연간총합", labels={"연간총합": "전력 사용량 (kWh)", "시도": "지역"},
+                   title="시도별 전체 전력 사용량 (연간)")
+fig_total.update_traces(texttemplate='%{text:.2s}', textposition='outside')
+st.plotly_chart(fig_total)
+
+# --------------------------
+# 🧩 시도별 계약종별 전력 사용 비율 (원그래프)
+# --------------------------
+st.header("🧩 시도별 계약종별 전력 사용 비율")
+
+selected_pie_sido = st.selectbox("시도를 선택하세요", sorted(df["시도"].unique()), key="pie_select")
+
+df_pie = df[df["시도"] == selected_pie_sido]
+df_pie_grouped = df_pie.groupby("계약종별")["연간총합"].sum().reset_index()
+df_pie_grouped = df_pie_grouped[df_pie_grouped["계약종별"] != "합계"]
+
+fig_pie = px.pie(df_pie_grouped, names="계약종별", values="연간총합",
+                 title=f"{selected_pie_sido} 계약종별 전력 사용 비율")
+st.plotly_chart(fig_pie)
+
 # --------------------------
 # 📊 1. 계약종별 시도 전력 사용량 막대그래프
 # --------------------------
